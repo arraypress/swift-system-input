@@ -1,308 +1,108 @@
 # Swift System Input
 
-Simple system input retrieval for macOS. Get selected text or clipboard content with a clean, straightforward API.
+A tiny Swift library for retrieving user input from system sources on macOS. Read the user's currently selected text or clipboard contents with a clean, single-call API, plus the accessibility-permission plumbing needed to make it work.
 
 ## Features
 
-- 📋 **Clipboard Access** - Read and write system clipboard
-- ✨ **Selected Text** - Get currently selected text from any app (requires accessibility permission)
-- 🔍 **Smart Fallback** - Automatically tries selected text, then clipboard
-- ✅ **Validation Support** - Optional text validation before returning
-- 🎯 **macOS Native** - Built specifically for macOS using native APIs
-
-## Installation
-
-### Swift Package Manager
-
-Add SystemInput to your project via Xcode:
-
-1. File → Add Package Dependencies
-2. Enter repository URL: `https://github.com/arraypress/swift-system-input`
-3. Select version and add to your target
-
-Or add to your `Package.swift`:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/arraypress/swift-system-input", from: "1.0.0")
-]
-```
+- 🎯 **Single-call API** — `SystemInput.getText()` returns the best available text
+- 🖱️ **Selected text** — read the current selection from the frontmost app via the Accessibility API
+- 📋 **Clipboard access** — read the current clipboard string, or copy text to it
+- ✅ **Inline validation** — pass a validator closure to accept text only when it matches
+- 🔁 **Smart fallback** — prefers selected text, falls back to clipboard automatically
+- 🔐 **Permission helpers** — check, request, and deep-link to Accessibility settings
+- 🧹 **Auto-trimmed** — returned text is whitespace-trimmed for you
+- 🪶 **Zero dependencies** — Foundation, AppKit, and ApplicationServices only
 
 ## Requirements
 
 - macOS 13.0+
 - Swift 5.9+
+- Xcode 15.0+
+
+## Installation
+
+### Swift Package Manager
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/arraypress/swift-system-input.git", from: "1.0.0")
+]
+```
 
 ## Usage
 
-### Quick Start
+### Get Text from the Best Source
+
+Tries selected text first, then the clipboard, returning `nil` if neither is available:
 
 ```swift
 import SystemInput
 
-// Get text from best available source (selected text → clipboard)
 if let text = SystemInput.getText() {
-    print("Got text: \(text)")
-}
-```
-
-### Get Text with Validation
-
-```swift
-// Only accept URLs
-if let url = SystemInput.getText(validator: { $0.hasPrefix("http") }) {
-    openURL(url)
-}
-
-// Only accept email addresses
-if let email = SystemInput.getText(validator: { $0.contains("@") }) {
-    sendEmail(to: email)
-}
-```
-
-### Access Sources Directly
-
-```swift
-// Get only selected text
-if let selected = SystemInput.selectedText {
-    print("Selected: \(selected)")
-}
-
-// Get only clipboard
-if let clipboard = SystemInput.clipboard {
-    print("Clipboard: \(clipboard)")
-}
-
-// Manual fallback
-if let text = SystemInput.selectedText ?? SystemInput.clipboard {
     process(text)
 }
 ```
 
-### Clipboard Operations
+### Validate Before Accepting
 
 ```swift
-// Copy text to clipboard
-SystemInput.copyToClipboard("Hello, World!")
-
-// Read clipboard
-if let text = SystemInput.clipboard {
-    print(text)
+// Only return the text if it looks like a URL
+if let urlString = SystemInput.getText(validator: { $0.hasPrefix("http") }) {
+    openURL(urlString)
 }
 ```
 
-### Accessibility Permissions
-
-Selected text requires accessibility permission. Handle this in your app:
+### Individual Sources
 
 ```swift
-// Check if permission is granted
-if SystemInput.hasAccessibilityPermission {
-    // Use selected text
-    if let text = SystemInput.selectedText {
-        process(text)
-    }
-} else {
-    // Request permission
-    SystemInput.requestAccessibilityPermission()
+// Currently selected text in the frontmost app (requires accessibility permission)
+if let selection = SystemInput.selectedText {
+    process(selection)
 }
 
-// Or open System Settings directly
-SystemInput.openAccessibilitySettings()
-```
-
-## API Reference
-
-### Methods
-
-#### `getText() -> String?`
-Get text from the best available source. Tries selected text first, then clipboard.
-
-**Returns:** Text string, or `nil` if nothing available.
-
-```swift
-if let text = SystemInput.getText() {
-    print(text)
+// Current clipboard string
+if let clipboard = SystemInput.clipboard {
+    process(clipboard)
 }
 ```
 
-#### `getText(validator:) -> String?`
-Get text from the best available source with optional validation.
-
-**Parameters:**
-- `validator: ((String) -> Bool)?` - Optional closure to validate text before returning
-
-**Returns:** Valid text string, or `nil` if unavailable or validation fails.
+### Write to the Clipboard
 
 ```swift
-let url = SystemInput.getText(validator: { $0.hasPrefix("http") })
+SystemInput.copyToClipboard("Hello, world!")
 ```
-
-### Properties
-
-#### `selectedText: String?`
-Get currently selected text from the frontmost application.
-
-**Returns:** `nil` if no text is selected or accessibility permission not granted.
-
-⚠️ **Not compatible with sandboxed Mac App Store apps.**
-
-```swift
-if let text = SystemInput.selectedText {
-    print("Selected: \(text)")
-}
-```
-
-#### `clipboard: String?`
-Get current clipboard text content.
-
-```swift
-if let text = SystemInput.clipboard {
-    print("Clipboard: \(text)")
-}
-```
-
-#### `hasAccessibilityPermission: Bool`
-Check if accessibility permission is granted.
-
-```swift
-if SystemInput.hasAccessibilityPermission {
-    // Can use selected text
-}
-```
-
-### Clipboard Operations
-
-#### `copyToClipboard(_ text: String)`
-Copy text to the system clipboard.
-
-```swift
-SystemInput.copyToClipboard("Hello!")
-```
-
-### Permission Helpers
-
-#### `requestAccessibilityPermission()`
-Request accessibility permission from the user. Shows system prompt.
-
-⚠️ App may need restart after granting permission.
-
-```swift
-SystemInput.requestAccessibilityPermission()
-```
-
-#### `openAccessibilitySettings()`
-Open System Settings to the Accessibility preferences pane.
-
-```swift
-SystemInput.openAccessibilitySettings()
-```
-
-## Important Notes
-
-### Mac App Store Compatibility
-
-⚠️ **Selected text functionality is NOT compatible with sandboxed Mac App Store apps.**
-
-The `selectedText` property uses the Accessibility API (`AXIsProcessTrusted`), which is not allowed in sandboxed apps distributed through the Mac App Store.
-
-**For Mac App Store apps:**
-- Use `clipboard` only
-- Or use `getText()` which will automatically fall back to clipboard when accessibility is unavailable
-
-**For direct distribution:**
-- Full functionality available
-- Users must grant accessibility permission
 
 ### Accessibility Permission
 
-To use `selectedText`, your app needs accessibility permission:
-
-1. The first time you access `selectedText`, call `requestAccessibilityPermission()` to prompt the user
-2. User must manually enable your app in System Settings → Privacy & Security → Accessibility
-3. App may need to be restarted after granting permission
-
-### Info.plist
-
-Add usage description to your `Info.plist`:
-
-```xml
-<key>NSAccessibilityUsageDescription</key>
-<string>This app needs accessibility access to read selected text from other applications.</string>
-```
-
-## Examples
-
-### URL Opener
+Reading selected text requires Accessibility permission. (Note: `selectedText` is not available to sandboxed Mac App Store apps.)
 
 ```swift
-import SystemInput
-
-func openSelectedURL() {
-    // Try to get a valid URL from selection or clipboard
-    if let urlString = SystemInput.getText(validator: { $0.hasPrefix("http") }),
-       let url = URL(string: urlString) {
-        NSWorkspace.shared.open(url)
-    } else {
-        print("No valid URL found")
-    }
+if !SystemInput.hasAccessibilityPermission {
+    SystemInput.requestAccessibilityPermission()   // shows the system prompt
+    // or take the user straight to the settings pane:
+    SystemInput.openAccessibilitySettings()
 }
 ```
 
-### Search Selected Text
+## How It Works
 
-```swift
-import SystemInput
-
-func searchWeb() {
-    guard let query = SystemInput.getText() else {
-        print("No text to search")
-        return
-    }
-    
-    let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)!
-    let searchURL = URL(string: "https://www.google.com/search?q=\(encoded)")!
-    NSWorkspace.shared.open(searchURL)
-}
-```
-
-### Text Processor with Permission Check
-
-```swift
-import SystemInput
-
-func processText() {
-    // Check for permission first
-    if !SystemInput.hasAccessibilityPermission {
-        SystemInput.requestAccessibilityPermission()
-        return
-    }
-    
-    // Get text with validation
-    guard let text = SystemInput.getText(validator: { !$0.isEmpty }) else {
-        print("No text available")
-        return
-    }
-    
-    // Process the text
-    let wordCount = text.split(separator: " ").count
-    print("Word count: \(wordCount)")
-}
-```
+`selectedText` queries the system-wide Accessibility element for the focused UI
+element, then reads its `AXSelectedText`. If that attribute is unavailable, it
+falls back to combining the element's full value with its `AXSelectedTextRange`
+to slice out the selection. Clipboard access goes through `NSPasteboard.general`.
 
 ## Testing
 
-The library includes tests for clipboard functionality and validation logic. Selected text functionality requires manual testing as it depends on system permissions and UI state.
-
-Run tests:
 ```bash
 swift test
 ```
 
+Tests cover the text-source fallback logic, validation, and clipboard round-trips.
+
 ## License
 
-MIT License - See LICENSE file for details
+MIT License — see LICENSE file for details.
 
-## Contributing
+## Author
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Created by David Sherlock ([ArrayPress](https://github.com/arraypress)) in 2026.
