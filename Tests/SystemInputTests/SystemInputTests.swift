@@ -80,4 +80,5 @@ final class SystemInputTests: XCTestCase {
         // This will actually open System Settings, so skip in CI
         // SystemInput.openAccessibilitySettings()
     }
+    
 }
