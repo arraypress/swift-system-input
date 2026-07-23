@@ -80,5 +80,64 @@ final class SystemInputTests: XCTestCase {
         // This will actually open System Settings, so skip in CI
         // SystemInput.openAccessibilitySettings()
     }
-    
+
+    // MARK: - Text Injection Tests
+
+    func testInject_withoutAccessibilityPermission_returnsFalse() throws {
+        try XCTSkipIf(SystemInput.hasAccessibilityPermission,
+                      "Accessibility permission is granted; the no-permission path can't be exercised.")
+        XCTAssertFalse(SystemInput.inject("test"))
+    }
+
+    func testSnapshotRestore_preservesStringContent() {
+        let pasteboard = NSPasteboard(name: .init("SystemInputTests.snapshotRestore"))
+        pasteboard.clearContents()
+        pasteboard.setString("Original", forType: .string)
+
+        let saved = SystemInput.snapshot(of: pasteboard)
+
+        // Overwrite, exactly as an injection would.
+        pasteboard.clearContents()
+        pasteboard.setString("Injected", forType: .string)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Injected")
+
+        // Restore returns the original contents verbatim.
+        SystemInput.restore(saved, to: pasteboard)
+        XCTAssertEqual(pasteboard.string(forType: .string), "Original")
+
+        pasteboard.releaseGlobally()
+    }
+
+    func testSnapshot_preservesMultipleTypes() {
+        let pasteboard = NSPasteboard(name: .init("SystemInputTests.multiType"))
+        let blobType = NSPasteboard.PasteboardType("com.arraypress.systeminput.test.blob")
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString("plain", forType: .string)
+        item.setData(Data([0x01, 0x02, 0x03]), forType: blobType)
+        pasteboard.writeObjects([item])
+
+        let saved = SystemInput.snapshot(of: pasteboard)
+
+        pasteboard.clearContents()
+        pasteboard.setString("changed", forType: .string)
+
+        SystemInput.restore(saved, to: pasteboard)
+        XCTAssertEqual(pasteboard.string(forType: .string), "plain")
+        XCTAssertEqual(pasteboard.data(forType: blobType), Data([0x01, 0x02, 0x03]))
+
+        pasteboard.releaseGlobally()
+    }
+
+    func testRestore_withEmptySnapshot_clearsPasteboard() {
+        let pasteboard = NSPasteboard(name: .init("SystemInputTests.empty"))
+        pasteboard.clearContents()
+        pasteboard.setString("something", forType: .string)
+
+        SystemInput.restore([], to: pasteboard)
+        XCTAssertNil(pasteboard.string(forType: .string))
+
+        pasteboard.releaseGlobally()
+    }
+
 }

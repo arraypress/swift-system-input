@@ -7,6 +7,7 @@ A tiny Swift library for retrieving user input from system sources on macOS. Rea
 - 🎯 **Single-call API** — `SystemInput.getText()` returns the best available text
 - 🖱️ **Selected text** — read the current selection from the frontmost app via the Accessibility API
 - 📋 **Clipboard access** — read the current clipboard string, or copy text to it
+- ⌨️ **Cursor injection** — paste text at the cursor in any app, restoring the clipboard afterwards
 - ✅ **Inline validation** — pass a validator closure to accept text only when it matches
 - 🔁 **Smart fallback** — prefers selected text, falls back to clipboard automatically
 - 🔐 **Permission helpers** — check, request, and deep-link to Accessibility settings
@@ -72,6 +73,20 @@ if let clipboard = SystemInput.clipboard {
 SystemInput.copyToClipboard("Hello, world!")
 ```
 
+### Inject Text at the Cursor
+
+Pastes text into whatever app is focused (via a synthesized ⌘V), then restores the previous clipboard contents so the user's clipboard is left untouched. This is the most portable injection method — it works in Electron, browsers, and native apps where direct Accessibility text insertion is unreliable. Requires Accessibility permission.
+
+```swift
+guard SystemInput.inject("Hello, world!") else {
+    SystemInput.requestAccessibilityPermission()   // not granted yet
+    return
+}
+
+// Or leave the injected text on the clipboard afterwards:
+SystemInput.inject("Hello, world!", restoreClipboard: false)
+```
+
 ### Accessibility Permission
 
 Reading selected text requires Accessibility permission. (Note: `selectedText` is not available to sandboxed Mac App Store apps.)
@@ -91,13 +106,18 @@ element, then reads its `AXSelectedText`. If that attribute is unavailable, it
 falls back to combining the element's full value with its `AXSelectedTextRange`
 to slice out the selection. Clipboard access goes through `NSPasteboard.general`.
 
+`inject(_:)` writes the text to the pasteboard, synthesizes a ⌘V keystroke with a
+private-state `CGEventSource`, then restores the previous pasteboard contents once
+the paste has landed — but only if nothing else wrote to the pasteboard in the
+meantime (tracked via `changeCount`).
+
 ## Testing
 
 ```bash
 swift test
 ```
 
-Tests cover the text-source fallback logic, validation, and clipboard round-trips.
+Tests cover the text-source fallback logic, validation, clipboard round-trips, and the pasteboard snapshot/restore that backs injection.
 
 ## License
 
